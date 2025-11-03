@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction - Waste Management ML Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .prediction-header {
+            background-color: #198754;
+            color: white;
+            padding: 30px 0;
+            margin-bottom: 30px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .btn-primary {
+            background-color: #198754;
+            border-color: #198754;
+        }
+        .btn-primary:hover {
+            background-color: #0d6a3e;
+            border-color: #0d6a3e;
+        }
+        .form-label {
+            font-weight: 500;
+        }
+        .footer {
+            background-color: #343a40;
+            color: white;
+            padding: 30px 0;
+            margin-top: 50px;
+        }
+        .feature-info {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+        .form-range {
+            width: 100%;
+        }
+        .range-value {
+            font-weight: bold;
+            color: #198754;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Waste Management ML Predictor</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/prediction">Make Predictions</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Prediction Header -->
+    <header class="prediction-header text-center">
+        <div class="container">
+            <h1 class="display-5 fw-bold">ML Prediction</h1>
+            <p class="lead">Enter neighborhood characteristics to see predictions from all three models</p>
+        </div>
+    </header>
+
+    <!-- Prediction Form -->
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h3 class="card-title m-0">Neighborhood Information</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if error %}
+                        <div class="alert alert-danger" role="alert">
+                            <h4 class="alert-heading">Error!</h4>
+                            <p>{{ error }}</p>
+                            <hr>
+                            <p class="mb-0">Please try again or contact support if the issue persists.</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category != 'error' else 'danger' }}" role="alert">
+                            {{ message }}
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                        {% endwith %}
+                        
+                        <form action="/prediction" method="post">
+                            <div class="row mb-4">
+                                <div class="col-md-6 mb-3">
+                                    <label for="population_density" class="form-label">Population Density (people/sq km)</label>
+                                    <input type="range" class="form-range" id="population_density" name="population_density" min="50" max="1200" step="10" value="500" oninput="updateRangeValue('population_density')">
+                                    <div class="d-flex justify-content-between">
+                                        <span>50</span>
+                                        <span class="range-value" id="population_density_value">500</span>
+                                        <span>1200</span>
+                                    </div>
+                                    <div class="feature-info">Higher density areas typically generate more total waste.</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="income_level" class="form-label">Income Level ($ per year)</label>
+                                    <input type="range" class="form-range" id="income_level" name="income_level" min="20000" max="120000" step="1000" value="50000" oninput="updateRangeValue('income_level')">
+                                    <div class="d-flex justify-content-between">
+                                        <span>$20k</span>
+                                        <span class="range-value" id="income_level_value">$50,000</span>
+                                        <span>$120k</span>
+                                    </div>
+                                    <div class="feature-info">Income level affects consumption patterns and waste generation.</div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-4">
+                                <div class="col-md-6 mb-3">
+                                    <label for="recycling_rate" class="form-label">Recycling Rate (0-0.85)</label>
+                                    <input type="range" class="form-range" id="recycling_rate" name="recycling_rate" min="0.05" max="0.85" step="0.01" value="0.35" oninput="updateRangeValue('recycling_rate')">
+                                    <div class="d-flex justify-content-between">
+                                        <span>5%</span>
+                                        <span class="range-value" id="recycling_rate_value">35%</span>
+                                        <span>85%</span>
+                                    </div>
+                                    <div class="feature-info">Higher recycling rates reduce overall waste volume.</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="public_awareness" class="form-label">Public Awareness (1-10)</label>
+                                    <input type="range" class="form-range" id="public_awareness" name="public_awareness" min="1" max="10" step="0.5" value="5" oninput="updateRangeValue('public_awareness')">
+                                    <div class="d-flex justify-content-between">
+                                        <span>1</span>
+                                        <span class="range-value" id="public_awareness_value">5</span>
+                                        <span>10</span>
+                                    </div>
+                                    <div class="feature-info">Awareness of waste management practices affects behavior.</div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-4">
+                                <div class="col-md-6 mb-3">
+                                    <label for="commercial_activity" class="form-label">Commercial Activity (1-10)</label>
+                                    <input type="range" class="form-range" id="commercial_activity" name="commercial_activity" min="1" max="10" step="0.5" value="5" oninput="updateRangeValue('commercial_activity')">
+                                    <div class="d-flex justify-content-between">
+                                        <span>1</span>
+                                        <span class="range-value" id="commercial_activity_value">5</span>
+                                        <span>10</span>
+                                    </div>
+                                    <div class="feature-info">Commercial areas generate different waste patterns.</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="weather_temperature" class="form-label">Weather Temperature (°C)</label>
+                                    <input type="range" class="form-range" id="weather_temperature" name="weather_temperature" min="0" max="30" step="1" value="15" oninput="updateRangeValue('weather_temperature')">
+                                    <div class="d-flex justify-content-between">
+                                        <span>0°C</span>
+                                        <span class="range-value" id="weather_temperature_value">15°C</span>
+                                        <span>30°C</span>
+                                    </div>
+                                    <div class="feature-info">Temperature affects consumption and waste generation.</div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-4">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Time Factors</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="is_holiday" name="is_holiday">
+                                        <label class="form-check-label" for="is_holiday">Is Holiday</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="is_weekend" name="is_weekend">
+                                        <label class="form-check-label" for="is_weekend">Is Weekend</label>
+                                    </div>
+                                    <div class="feature-info">Holidays and weekends affect waste generation patterns.</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Date Information</label>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <select class="form-select" id="month" name="month">
+                                                <option value="1">January</option>
+                                                <option value="2">February</option>
+                                                <option value="3">March</option>
+                                                <option value="4">April</option>
+                                                <option value="5">May</option>
+                                                <option value="6">June</option>
+                                                <option value="7">July</option>
+                                                <option value="8">August</option>
+                                                <option value="9">September</option>
+                                                <option value="10">October</option>
+                                                <option value="11">November</option>
+                                                <option value="12">December</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <select class="form-select" id="day_of_week" name="day_of_week">
+                                                <option value="0">Monday</option>
+                                                <option value="1">Tuesday</option>
+                                                <option value="2">Wednesday</option>
+                                                <option value="3">Thursday</option>
+                                                <option value="4">Friday</option>
+                                                <option value="5">Saturday</option>
+                                                <option value="6">Sunday</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="feature-info">Season and day of week affect consumption patterns.</div>
+                                </div>
+                            </div>
+
+                            <div class="text-center mt-4">
+                                <button type="submit" class="btn btn-primary btn-lg">Generate Prediction</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h3 class="card-title m-0">What Will This Tell Me?</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 text-center mb-3">
+                                <div class="fw-bold text-success mb-2">Waste Generation</div>
+                                <div style="font-size: 2rem;"><i class="bi bi-graph-up"></i>📊</div>
+                                <p>Predicted daily waste generation in kg per person</p>
+                            </div>
+                            <div class="col-md-4 text-center mb-3">
+                                <div class="fw-bold text-success mb-2">Efficiency Class</div>
+                                <div style="font-size: 2rem;">🏷️</div>
+                                <p>Classification of area's waste management efficiency</p>
+                            </div>
+                            <div class="col-md-4 text-center mb-3">
+                                <div class="fw-bold text-success mb-2">Similar Neighborhoods</div>
+                                <div style="font-size: 2rem;">🏙️</div>
+                                <p>Areas with similar waste profiles for optimized routes</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container text-center">
+            <p>&copy; 2024 Waste Management ML Predictor</p>
+            <p>Utilizing Polynomial Regression, Logistic Regression, and KMeans Clustering</p>
+        </div>
+    </footer>
+
+    <script>
+        // Update range input display values
+        function updateRangeValue(id) {
+            const input = document.getElementById(id);
+            const valueDisplay = document.getElementById(id + '_value');
+            
+            if (id === 'income_level') {
+                valueDisplay.textContent = '$' + Number(input.value).toLocaleString();
+            } else if (id === 'recycling_rate') {
+                valueDisplay.textContent = Math.round(input.value * 100) + '%';
+            } else if (id === 'weather_temperature') {
+                valueDisplay.textContent = input.value + '°C';
+            } else {
+                valueDisplay.textContent = input.value;
+            }
+        }
+
+        // Initialize all range values on page load
+        window.onload = function() {
+            updateRangeValue('population_density');
+            updateRangeValue('income_level');
+            updateRangeValue('recycling_rate');
+            updateRangeValue('public_awareness');
+            updateRangeValue('commercial_activity');
+            updateRangeValue('weather_temperature');
+        };
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 

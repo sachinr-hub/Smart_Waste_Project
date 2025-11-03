@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Results - Waste Management ML Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .results-header {
+            background-color: #198754;
+            color: white;
+            padding: 30px 0;
+            margin-bottom: 30px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .result-card {
+            text-align: center;
+            padding: 20px;
+        }
+        .result-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #198754;
+        }
+        .result-label {
+            font-size: 1rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .btn-primary {
+            background-color: #198754;
+            border-color: #198754;
+        }
+        .btn-primary:hover {
+            background-color: #0d6a3e;
+            border-color: #0d6a3e;
+        }
+        .footer {
+            background-color: #343a40;
+            color: white;
+            padding: 30px 0;
+            margin-top: 50px;
+        }
+        .progress {
+            height: 2rem;
+        }
+        .cluster-tag {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            background-color: #198754;
+            color: white;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        .similar-tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            background-color: #6c757d;
+            color: white;
+            margin: 0.25rem;
+        }
+        .efficiency-badge {
+            margin-bottom: 20px;
+            display: inline-block;
+            font-size: 1.5rem;
+            padding: 10px 20px;
+            border-radius: 50px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Waste Management ML Predictor</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/prediction">Make Predictions</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Results Header -->
+    <header class="results-header text-center">
+        <div class="container">
+            <h1 class="display-5 fw-bold">Prediction Results</h1>
+            <p class="lead">Machine learning analysis for your neighborhood characteristics</p>
+        </div>
+    </header>
+
+    <!-- Results Section -->
+    <div class="container mb-5">
+        {% if not result %}
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">Error!</h4>
+            <p>No prediction results were generated. There might be an issue with the model or the input data.</p>
+            <hr>
+            <p class="mb-0"><a href="/prediction" class="btn btn-primary">Try Again</a></p>
+        </div>
+        {% else %}
+        <div class="row mb-4">
+            <!-- Waste Prediction -->
+            <div class="col-md-6">
+                <div class="card result-card h-100">
+                    <h3 class="card-title mb-4">Waste Generation Prediction</h3>
+                    <div class="result-value mb-2">{{ result.waste_prediction }} kg</div>
+                    <div class="result-label">Daily waste generation per person</div>
+                    <div class="mt-4">
+                        <p>
+                            Polynomial Regression analysis predicts this level of daily waste generation based on the provided neighborhood characteristics.
+                        </p>
+                        <div class="text-start mt-4">
+                            <p><strong>Interpretation:</strong></p>
+                            {% if result.waste_prediction|float < 1.0 %}
+                            <p>This is a <span class="text-success fw-bold">low</span> level of waste generation, indicating efficient consumption patterns.</p>
+                            {% elif result.waste_prediction|float < 1.5 %}
+                            <p>This is a <span class="text-primary fw-bold">moderate</span> level of waste generation, typical for similar neighborhoods.</p>
+                            {% else %}
+                            <p>This is a <span class="text-danger fw-bold">high</span> level of waste generation that may require targeted interventions.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Efficiency Class -->
+            <div class="col-md-6">
+                <div class="card result-card h-100">
+                    <h3 class="card-title mb-4">Waste Efficiency Classification</h3>
+                    
+                    <div class="mb-3">
+                        {% if result.efficiency_class == 0 %}
+                        <div class="efficiency-badge bg-success text-white">Very Efficient</div>
+                        {% elif result.efficiency_class == 1 %}
+                        <div class="efficiency-badge bg-info text-white">Efficient</div>
+                        {% elif result.efficiency_class == 2 %}
+                        <div class="efficiency-badge bg-warning text-dark">Moderate</div>
+                        {% else %}
+                        <div class="efficiency-badge bg-danger text-white">Inefficient</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mt-4">
+                        <p>
+                            Logistic Regression analysis classifies this neighborhood based on waste management efficiency.
+                        </p>
+                        <div class="text-start mt-4">
+                            <p><strong>Class Probabilities:</strong></p>
+                            
+                            {% for i in range(result.efficiency_probabilities|length) %}
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <span>
+                                        {% if i == 0 %}Very Efficient
+                                        {% elif i == 1 %}Efficient
+                                        {% elif i == 2 %}Moderate
+                                        {% else %}Inefficient
+                                        {% endif %}
+                                    </span>
+                                    <span>{{ (result.efficiency_probabilities[i] * 100)|round(1) }}%</span>
+                                </div>
+                                <div class="progress">
+                                    <div 
+                                        class="progress-bar {% if i == 0 %}bg-success{% elif i == 1 %}bg-info{% elif i == 2 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                        role="progressbar" 
+                                        data-width="{{ (result.efficiency_probabilities[i] * 100)|round(1) }}"
+                                        aria-valuenow="{{ (result.efficiency_probabilities[i] * 100)|round(1) }}" 
+                                        aria-valuemin="0" 
+                                        aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cluster Analysis -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h3 class="card-title m-0">Neighborhood Clustering Analysis</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 text-center">
+                        <div class="cluster-tag">Cluster {{ result.cluster_assignment }}</div>
+                        <p>This neighborhood belongs to cluster profile {{ result.cluster_assignment }}, which typically represents 
+                        {% if result.cluster_assignment == 0 %}
+                            high-density urban areas with high waste generation
+                        {% elif result.cluster_assignment == 1 %}
+                            medium-density areas with moderate recycling rates
+                        {% elif result.cluster_assignment == 2 %}
+                            low-density areas with efficient waste management
+                        {% else %}
+                            commercial areas with distinct waste patterns
+                        {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Similar Neighborhoods:</h5>
+                        <div class="mb-3">
+                            {% for neighbor in result.neighbors %}
+                            <span class="similar-tag">Neighborhood {{ neighbor }}</span>
+                            {% endfor %}
+                        </div>
+                        <p>These neighborhoods have similar waste generation patterns and would benefit from similar waste management strategies and collection routes.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Parameters -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h3 class="card-title m-0">Input Parameters</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-striped">
+                            <tbody>
+                                <tr>
+                                    <th>Population Density</th>
+                                    <td>{{ input_data.population_density }} people/sq km</td>
+                                </tr>
+                                <tr>
+                                    <th>Income Level</th>
+                                    <td>${{ input_data.income_level|int }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Recycling Rate</th>
+                                    <td>{{ (input_data.recycling_rate * 100)|round|int }}%</td>
+                                </tr>
+                                <tr>
+                                    <th>Public Awareness</th>
+                                    <td>{{ input_data.public_awareness }} / 10</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-striped">
+                            <tbody>
+                                <tr>
+                                    <th>Commercial Activity</th>
+                                    <td>{{ input_data.commercial_activity }} / 10</td>
+                                </tr>
+                                <tr>
+                                    <th>Weather Temperature</th>
+                                    <td>{{ input_data.weather_temperature }}°C</td>
+                                </tr>
+                                <tr>
+                                    <th>Is Holiday</th>
+                                    <td>{{ 'Yes' if input_data.is_holiday else 'No' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Is Weekend</th>
+                                    <td>{{ 'Yes' if input_data.is_weekend else 'No' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recommendations Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h3 class="card-title m-0">Recommendations</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <h5>Based on the prediction results, we recommend:</h5>
+                        <ul class="list-group list-group-flush mt-3">
+                            {% if result.efficiency_class == 0 %}
+                            <li class="list-group-item">Maintain current waste management practices</li>
+                            <li class="list-group-item">Consider this neighborhood as a model for others</li>
+                            <li class="list-group-item">Monitor for any seasonal variations or special events</li>
+                            {% elif result.efficiency_class == 1 %}
+                            <li class="list-group-item">Focus on maintaining recycling rates while looking for minor improvements</li>
+                            <li class="list-group-item">Implement targeted public awareness campaigns</li>
+                            <li class="list-group-item">Consider slight adjustments to collection frequency</li>
+                            {% elif result.efficiency_class == 2 %}
+                            <li class="list-group-item">Improve recycling infrastructure and accessibility</li>
+                            <li class="list-group-item">Launch community engagement programs focusing on waste reduction</li>
+                            <li class="list-group-item">Review collection routes and scheduling for optimization</li>
+                            {% else %}
+                            <li class="list-group-item">Implement comprehensive waste reduction program</li>
+                            <li class="list-group-item">Increase collection frequency during peak times</li>
+                            <li class="list-group-item">Deploy smart bins with fill-level monitoring</li>
+                            <li class="list-group-item">Launch intensive education campaigns</li>
+                            {% endif %}
+                            
+                            {% if result.waste_prediction|float > 1.5 %}
+                            <li class="list-group-item">Focus on reducing overall waste generation through targeted initiatives</li>
+                            {% endif %}
+                            
+                            <li class="list-group-item">Coordinate with similar neighborhoods (cluster {{ result.cluster_assignment }}) for shared waste management strategies</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="text-center">
+            <a href="/prediction" class="btn btn-primary btn-lg">Make Another Prediction</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container text-center">
+            <p>&copy; 2024 Waste Management ML Predictor</p>
+            <p>Utilizing Polynomial Regression, Logistic Regression, and KMeans Clustering</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Set progress bar widths from data attributes
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.progress-bar[data-width]').forEach(function(bar) {
+                bar.style.width = bar.getAttribute('data-width') + '%';
+            });
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment variables
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+
+# Project-specific large/artifact directories
+smart_waste_ml/models/saved_models/
+smart_waste_ml/models/backup_models/
+smart_waste_ml/models/metrics/
+smart_waste_ml/data/visualizations/
+
+# Node (if any frontend added later)
+node_modules/

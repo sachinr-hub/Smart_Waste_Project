@@ -1,0 +1,4 @@
+population_density,income_level,recycling_rate,public_awareness,commercial_activity,weather_temperature,waste_generation,cluster
+500,50000,0.35,5,5,20,1.2,0
+800,70000,0.55,7,8,22,0.9,1
+300,30000,0.25,4,3,18,1.5,2
