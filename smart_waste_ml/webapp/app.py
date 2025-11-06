@@ -23,6 +23,62 @@ IMPROVED_POLY_PATH = os.path.join(MODEL_DIR, 'improved_polynomial_regression_mod
 IMPROVED_LOG_PATH = os.path.join(MODEL_DIR, 'improved_logistic_regression_model.joblib')
 IMPROVED_KMEANS_PATH = os.path.join(MODEL_DIR, 'improved_kmeans_clustering_model.joblib')
 
+def _add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add engineered features used by improved models when base inputs are present.
+    This function is safe to call regardless of whether the model uses them.
+    """
+    df = df.copy()
+    # Safely compute engineered fields if base fields exist
+    if all(col in df.columns for col in ['commercial_activity', 'population_density']):
+        df['commercial_density_ratio'] = df['commercial_activity'] * df['population_density'] / 1000.0
+    if all(col in df.columns for col in ['recycling_rate', 'public_awareness']):
+        df['recycling_awareness'] = df['recycling_rate'] * df['public_awareness']
+    if 'month' in df.columns:
+        # Seasonal factor similar to improved data generation
+        df['seasonal_factor'] = np.sin(df['month'] * np.pi / 6.0) * 2.0
+    if all(col in df.columns for col in ['is_weekend', 'is_holiday']):
+        df['weekend_holiday'] = ((df['is_weekend'] + df['is_holiday']) > 0).astype(int)
+    if 'weather_temperature' in df.columns:
+        df['temp_squared'] = df['weather_temperature'] ** 2
+    return df
+
+def _prepare_features_for_model(model_blob, df: pd.DataFrame):
+    """Given a loaded model blob (dict or estimator), select and scale features as expected by the model.
+    Returns (X_ready, estimator) where X_ready is numpy array or DataFrame matching estimator expectations.
+    """
+    # model_blob could be:
+    # - a dict with keys like 'model', 'feature_names', 'scaler'
+    # - a sklearn Pipeline/estimator directly
+    if isinstance(model_blob, dict):
+        estimator = model_blob.get('model', None)
+        feature_names = model_blob.get('feature_names', None)
+        scaler = model_blob.get('scaler', None)
+        # Compute engineered features so required columns exist
+        enriched = _add_engineered_features(df)
+        if feature_names is not None:
+            missing = [c for c in feature_names if c not in enriched.columns]
+            if missing:
+                print(f"Warning: Missing expected features for model: {missing}")
+            X = enriched.reindex(columns=feature_names, fill_value=0)
+        else:
+            X = enriched
+        if scaler is not None:
+            try:
+                X_ready = scaler.transform(X)
+            except Exception:
+                # If scaler expects DataFrame vs ndarray, adjust accordingly
+                X_ready = scaler.transform(np.asarray(X))
+        else:
+            X_ready = X
+        # Fallback if 'model' key missing and blob itself is estimator
+        if estimator is None:
+            estimator = model_blob
+        return X_ready, estimator
+    else:
+        # Estimator or Pipeline directly. Try to respect common app selection but still enrich features
+        enriched = _add_engineered_features(df)
+        return enriched, model_blob
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -100,33 +156,16 @@ def predict_waste_generation(features):
         # Try improved model first
         if os.path.exists(IMPROVED_POLY_PATH):
             print(f"Using improved polynomial regression model")
-            model_data = joblib.load(IMPROVED_POLY_PATH)
-            model = model_data.get('model')
-            if model is None:
-                model = model_data
-                
-            # Model could be a pipeline or direct regressor
-            waste_prediction = model.predict(features[['population_density', 'income_level', 'recycling_rate', 
-                                             'public_awareness', 'commercial_activity', 
-                                             'weather_temperature', 'is_holiday', 'is_weekend']])[0]
+            model_blob = joblib.load(IMPROVED_POLY_PATH)
+            X_ready, estimator = _prepare_features_for_model(model_blob, features)
+            waste_prediction = estimator.predict(X_ready)[0]
             return waste_prediction
         
         # Fallback to original model
         print(f"Using original polynomial regression model")
-        poly_model_data = joblib.load(POLY_REG_MODEL_PATH)
-        poly_reg = poly_model_data.get('model', poly_model_data)
-        poly_features = poly_model_data.get('poly_features')
-        
-        if poly_features is not None and hasattr(poly_features, 'transform'):
-            poly_features_input = poly_features.transform(features[['population_density', 'income_level', 'recycling_rate', 
-                                                          'public_awareness', 'commercial_activity', 
-                                                          'weather_temperature', 'is_holiday', 'is_weekend']])
-            waste_prediction = poly_reg.predict(poly_features_input)[0]
-        else:
-            # If using scikit-learn Pipeline directly
-            waste_prediction = poly_reg.predict(features[['population_density', 'income_level', 'recycling_rate', 
-                                               'public_awareness', 'commercial_activity', 
-                                               'weather_temperature', 'is_holiday', 'is_weekend']])[0]
+        model_blob = joblib.load(POLY_REG_MODEL_PATH)
+        X_ready, estimator = _prepare_features_for_model(model_blob, features)
+        waste_prediction = estimator.predict(X_ready)[0]
         return waste_prediction
         
     except Exception as e:
@@ -141,26 +180,18 @@ def predict_efficiency(features):
         # Try improved model first
         if os.path.exists(IMPROVED_LOG_PATH):
             print(f"Using improved logistic regression model")
-            model_data = joblib.load(IMPROVED_LOG_PATH)
-            model = model_data.get('model')
-            if model is None:
-                model = model_data
-                
-            classification_features = features[['population_density', 'income_level', 'recycling_rate', 
-                                    'public_awareness', 'commercial_activity']]
-            efficiency_class = model.predict(classification_features)[0]
-            efficiency_probabilities = model.predict_proba(classification_features)[0]
+            model_blob = joblib.load(IMPROVED_LOG_PATH)
+            X_ready, estimator = _prepare_features_for_model(model_blob, features)
+            efficiency_class = estimator.predict(X_ready)[0]
+            efficiency_probabilities = estimator.predict_proba(X_ready)[0]
             return efficiency_class, efficiency_probabilities
         
         # Fallback to original model
         print(f"Using original logistic regression model")
-        log_reg_data = joblib.load(LOG_REG_MODEL_PATH)
-        log_reg = log_reg_data.get('model', log_reg_data)
-        
-        classification_features = features[['population_density', 'income_level', 'recycling_rate', 
-                                'public_awareness', 'commercial_activity']]
-        efficiency_class = log_reg.predict(classification_features)[0]
-        efficiency_probabilities = log_reg.predict_proba(classification_features)[0]
+        model_blob = joblib.load(LOG_REG_MODEL_PATH)
+        X_ready, estimator = _prepare_features_for_model(model_blob, features)
+        efficiency_class = estimator.predict(X_ready)[0]
+        efficiency_probabilities = estimator.predict_proba(X_ready)[0]
         return efficiency_class, efficiency_probabilities
         
     except Exception as e:
@@ -175,34 +206,22 @@ def predict_cluster(features):
         # Try improved model first
         if os.path.exists(IMPROVED_KMEANS_PATH):
             print(f"Using improved clustering model")
-            model_data = joblib.load(IMPROVED_KMEANS_PATH)
-            model = model_data.get('model')
-            if model is None:
-                model = model_data
-                
-            cluster_features = features[['population_density', 'income_level', 'recycling_rate', 
-                                'public_awareness', 'commercial_activity', 
-                                'weather_temperature']]
-            
-            if hasattr(model, 'predict_cluster'):
-                cluster = model.predict_cluster(cluster_features)[0]
+            model_blob = joblib.load(IMPROVED_KMEANS_PATH)
+            X_ready, estimator = _prepare_features_for_model(model_blob, features)
+            if hasattr(estimator, 'predict_cluster'):
+                cluster = estimator.predict_cluster(X_ready)[0]
             else:
-                cluster = model.predict(cluster_features)[0]
+                cluster = estimator.predict(X_ready)[0]
             return cluster
         
         # Fallback to original model
         print(f"Using original KMeans clustering model")
-        KMeans_data = joblib.load(KMEANS_MODEL_PATH)
-        kmeans_model = KMeans_data.get('model', KMeans_data)
-        
-        cluster_features = features[['population_density', 'income_level', 'recycling_rate', 
-                                'public_awareness', 'commercial_activity', 
-                                'weather_temperature']]
-        
-        if hasattr(kmeans_model, 'predict_cluster'):
-            cluster = kmeans_model.predict_cluster(cluster_features)[0]
+        model_blob = joblib.load(KMEANS_MODEL_PATH)
+        X_ready, estimator = _prepare_features_for_model(model_blob, features)
+        if hasattr(estimator, 'predict_cluster'):
+            cluster = estimator.predict_cluster(X_ready)[0]
         else:
-            cluster = kmeans_model.predict(cluster_features)[0]
+            cluster = estimator.predict(X_ready)[0]
         return cluster
         
     except Exception as e:
