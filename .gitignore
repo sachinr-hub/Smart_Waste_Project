@@ -45,3 +45,9 @@ smart_waste_ml/data/visualizations/
 
 # Node (if any frontend added later)
 node_modules/
+
+# Generated datasets (ignore large CSVs created by scripts)
+smart_waste_ml/data/*.csv
+
+# Generated static assets (if any tooling outputs here)
+smart_waste_ml/webapp/static/generated/
